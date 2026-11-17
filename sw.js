@@ -1,11 +1,12 @@
 // Caches the game so it opens and plays with no internet connection.
 // Bump VERSION (and APP_VERSION in game.js) whenever you change any file.
-const VERSION = 'mines50-v6';
+const VERSION = 'mines50-v7';
 const FILES = [
   './',
   'index.html',
   'style.css',
   'game.js',
+  'levels.js',
   'manifest.webmanifest',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',

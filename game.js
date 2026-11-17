@@ -1,28 +1,16 @@
 'use strict';
 
 /* ---------- Levels ----------
+ * Level sizes and layouts live in levels.js (see tools/generate_levels.py).
  * Difficulty ramps smoothly from level 1 to 50:
  *   board width   8 -> 30 columns
  *   board height  8 -> 20 rows
  *   mine density 10% -> 23%   (classic Expert is ~20.6%)
- * Mine count is forced to rise every level, so each one is strictly harder.
+ * Every level has more mines than the one before.
  */
-const APP_VERSION = '6'; // keep in step with VERSION in sw.js
-const LEVEL_COUNT = 50;
-const LEVELS = (() => {
-  const out = [];
-  let prev = 0;
-  for (let i = 0; i < LEVEL_COUNT; i++) {
-    const t = i / (LEVEL_COUNT - 1);
-    const cols = Math.round(8 + t * 22);
-    const rows = Math.round(8 + t * 12);
-    const density = 0.10 + t * 0.13;
-    const mines = Math.max(prev + 1, Math.round(cols * rows * density));
-    out.push({ n: i + 1, cols, rows, mines });
-    prev = mines;
-  }
-  return out;
-})();
+const APP_VERSION = '7'; // keep in step with VERSION in sw.js
+const LEVELS = LEVEL_DATA.map(({ n, cols, rows, mines }) => ({ n, cols, rows, mines }));
+const LEVEL_COUNT = LEVELS.length;
 const TIERS = ['Beginner', 'Easy', 'Medium', 'Hard', 'Expert'];
 const tierOf = n => Math.min(5, Math.ceil(n / 10));
 
@@ -160,36 +148,12 @@ function neighbours(i) {
   return out;
 }
 
-// Seeded random numbers: the same seed always gives the same sequence.
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 // The fixed layout for a level, as [row, col] pairs on the level's normal (wide) board.
-// The starting point and its 8 neighbours never hold a mine, so it always opens an area.
-// Changing LAYOUT_SALT would give every level a new layout.
-const LAYOUT_SALT = 0x4D696E65;
+// Layouts come from levels.js, made by tools/generate_levels.py, which checks that
+// each one can be cleared from the starting square by logic alone (no guessing).
 function levelLayout(L) {
-  const rng = mulberry32(Math.imul(L.n, 0x9E3779B1) ^ LAYOUT_SALT);
-  const R = L.rows, C = L.cols;
-  const sr = Math.floor(R * (0.25 + rng() * 0.5));
-  const sc = Math.floor(C * (0.25 + rng() * 0.5));
-  const pool = [];
-  for (let r = 0; r < R; r++) {
-    for (let c = 0; c < C; c++) {
-      if (Math.abs(r - sr) > 1 || Math.abs(c - sc) > 1) pool.push([r, c]);
-    }
-  }
-  for (let k = 0; k < L.mines; k++) {
-    const j = k + Math.floor(rng() * (pool.length - k));
-    [pool[k], pool[j]] = [pool[j], pool[k]];
-  }
-  return { start: [sr, sc], mines: pool.slice(0, L.mines) };
+  const d = LEVEL_DATA[L.n - 1];
+  return { start: d.start, mines: d.layout.map(i => [Math.floor(i / d.cols), i % d.cols]) };
 }
 
 function reveal(i) {

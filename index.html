@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Minesweeper 50</title>
+  <!-- Home-screen app (iPhone + Android) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mines 50">
+  <meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#12141a" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Level select -->
+  <section id="levelScreen" class="screen">
+    <header class="top">
+      <h1>Minesweeper <span class="accent">50</span></h1>
+      <p class="sub">50 levels, each harder than the last. Clear a level to unlock the next. You can replay any level you've already unlocked.</p>
+      <div class="progress-row">
+        <div class="bar"><div id="progressFill"></div></div>
+        <span id="progressText"></span>
+      </div>
+    </header>
+    <div id="levelGrid" class="level-grid"></div>
+    <footer class="foot">
+      <button id="continueBtn" class="btn primary"></button>
+      <button id="resetBtn" class="btn ghost">Reset progress</button>
+    </footer>
+  </section>
+
+  <!-- Game -->
+  <section id="gameScreen" class="screen hidden">
+    <header class="game-top">
+      <button id="backBtn" class="btn ghost" title="Back to levels (Esc)">← Levels</button>
+      <div class="title">
+        <div id="levelTitle"></div>
+        <div id="levelMeta" class="meta"></div>
+      </div>
+      <div class="nav">
+        <button id="prevBtn" class="btn ghost icon" title="Previous level">‹</button>
+        <button id="nextBtn" class="btn ghost icon" title="Next level">›</button>
+      </div>
+    </header>
+    <div class="hud">
+      <div class="stat"><span class="label">Mines</span><span id="mineCount">0</span></div>
+      <button id="faceBtn" class="face" title="Restart level (R)">🙂</button>
+      <div class="stat"><span class="label">Time</span><span id="timer">0.0</span></div>
+    </div>
+    <div class="hud-sub">
+      <span id="bestText"></span>
+      <button id="flagModeBtn" class="btn ghost small" title="Toggle flag mode (F)">🚩 Flag mode: off</button>
+    </div>
+    <div id="boardWrap" class="board-wrap">
+      <div id="board" class="board"></div>
+    </div>
+    <p class="help">Left-click / tap to reveal · Right-click / long-press to flag · Click a number to clear around it when its flags are placed</p>
+  </section>
+
+  <!-- Result dialog -->
+  <div id="overlay" class="overlay hidden">
+    <div class="dialog">
+      <div id="resultEmoji" class="big"></div>
+      <h2 id="resultTitle"></h2>
+      <p id="resultText"></p>
+      <div id="resultButtons" class="buttons"></div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

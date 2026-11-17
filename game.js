@@ -123,11 +123,15 @@ function startLevel(n) {
   });
   board.appendChild(frag);
 
-  // Starting point: a marked square near the middle. Mines are laid after the
-  // first tap and kept away from it, so tapping it always opens up an area.
-  const r = Math.floor(G.rows * (0.25 + Math.random() * 0.5));
-  const c = Math.floor(G.cols * (0.25 + Math.random() * 0.5));
-  G.start = r * G.cols + c;
+  // Every level has one fixed layout (same mines and same starting point every time).
+  // On a turned board, the same layout is shown rotated 90°.
+  const layout = levelLayout(L);
+  const toIdx = ([r, c]) => turn ? c * G.cols + (L.rows - 1 - r) : r * G.cols + c;
+  for (const m of layout.mines) G.cells[toIdx(m)].mine = true;
+  G.cells.forEach((cell, i) => {
+    cell.adj = neighbours(i).reduce((s, j) => s + (G.cells[j].mine ? 1 : 0), 0);
+  });
+  G.start = toIdx(layout.start);
   paint(G.start);
 
   $('#levelTitle').textContent = `Level ${n}`;
@@ -155,19 +159,36 @@ function neighbours(i) {
   return out;
 }
 
-// Mines are placed after the first click so the first click is always an empty (0) cell.
-function placeMines(safe) {
-  const forbidden = new Set([safe, ...neighbours(safe)]);
+// Seeded random numbers: the same seed always gives the same sequence.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// The fixed layout for a level, as [row, col] pairs on the level's normal (wide) board.
+// The starting point and its 8 neighbours never hold a mine, so it always opens an area.
+// Changing LAYOUT_SALT would give every level a new layout.
+const LAYOUT_SALT = 0x4D696E65;
+function levelLayout(L) {
+  const rng = mulberry32(Math.imul(L.n, 0x9E3779B1) ^ LAYOUT_SALT);
+  const R = L.rows, C = L.cols;
+  const sr = Math.floor(R * (0.25 + rng() * 0.5));
+  const sc = Math.floor(C * (0.25 + rng() * 0.5));
   const pool = [];
-  for (let i = 0; i < G.total; i++) if (!forbidden.has(i)) pool.push(i);
-  for (let k = 0; k < G.L.mines; k++) {
-    const j = k + Math.floor(Math.random() * (pool.length - k));
-    [pool[k], pool[j]] = [pool[j], pool[k]];
-    G.cells[pool[k]].mine = true;
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      if (Math.abs(r - sr) > 1 || Math.abs(c - sc) > 1) pool.push([r, c]);
+    }
   }
-  G.cells.forEach((c, i) => {
-    c.adj = neighbours(i).reduce((s, j) => s + (G.cells[j].mine ? 1 : 0), 0);
-  });
+  for (let k = 0; k < L.mines; k++) {
+    const j = k + Math.floor(rng() * (pool.length - k));
+    [pool[k], pool[j]] = [pool[j], pool[k]];
+  }
+  return { start: [sr, sc], mines: pool.slice(0, L.mines) };
 }
 
 function reveal(i) {
@@ -175,7 +196,6 @@ function reveal(i) {
   const cell = G.cells[i];
   if (cell.open || cell.flag) return;
   if (!G.started) {
-    placeMines(i);
     G.started = true;
     startTimer();
     paint(G.start); // clear the starting-point marker

@@ -1,6 +1,6 @@
 // Caches the game so it opens and plays with no internet connection.
 // Bump VERSION whenever you change any file, so phones pick up the update.
-const VERSION = 'mines50-v3';
+const VERSION = 'mines50-v4';
 const FILES = [
   './',
   'index.html',

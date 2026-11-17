@@ -7,7 +7,7 @@
  *   mine density 10% -> 23%   (classic Expert is ~20.6%)
  * Mine count is forced to rise every level, so each one is strictly harder.
  */
-const APP_VERSION = '5'; // keep in step with VERSION in sw.js
+const APP_VERSION = '6'; // keep in step with VERSION in sw.js
 const LEVEL_COUNT = 50;
 const LEVELS = (() => {
   const out = [];
@@ -283,11 +283,10 @@ function lose(i) {
   G.over = true;
   stopTimer();
   $('#faceBtn').textContent = '😵';
-  G.cells.forEach((c, j) => {
-    if (c.mine && !c.flag) { c.el.className = 'cell mine'; c.el.textContent = '💣'; }
-    else if (!c.mine && c.flag) { c.el.className = 'cell wrong'; c.el.textContent = '✖'; }
-  });
+  // Only show the mine you hit. The others stay hidden, because layouts are
+  // fixed and showing them would give away the answer for the next try.
   G.cells[i].el.className = 'cell boom';
+  G.cells[i].el.textContent = '💣';
   const pct = Math.floor(G.opened / (G.total - G.L.mines) * 100);
   const game = G;
   setTimeout(() => {

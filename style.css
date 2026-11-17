@@ -158,7 +158,7 @@ body {
 @keyframes startPulse { 50% { transform: scale(1.35); opacity: .6; } }
 @media (prefers-reduced-motion: reduce) { .cell.start::after { animation: none; } }
 .cell.open.has-n { cursor: pointer; }
-.cell.flag, .cell.mine, .cell.wrong { font-size: calc(var(--cell) * .5); }
+.cell.flag, .cell.mine, .cell.wrong, .cell.boom { font-size: calc(var(--cell) * .5); }
 .cell.mine { background: var(--open); box-shadow: none; }
 .cell.boom { background: var(--boom); box-shadow: none; }
 .cell.wrong { color: var(--boom); }

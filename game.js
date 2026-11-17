@@ -123,6 +123,13 @@ function startLevel(n) {
   });
   board.appendChild(frag);
 
+  // Starting point: a marked square near the middle. Mines are laid after the
+  // first tap and kept away from it, so tapping it always opens up an area.
+  const r = Math.floor(G.rows * (0.25 + Math.random() * 0.5));
+  const c = Math.floor(G.cols * (0.25 + Math.random() * 0.5));
+  G.start = r * G.cols + c;
+  paint(G.start);
+
   $('#levelTitle').textContent = `Level ${n}`;
   $('#levelMeta').textContent = `${TIERS[tierOf(n) - 1]} · ${L.cols}×${L.rows} · ${L.mines} mines`;
   $('#prevBtn').disabled = n <= 1;
@@ -171,6 +178,7 @@ function reveal(i) {
     placeMines(i);
     G.started = true;
     startTimer();
+    paint(G.start); // clear the starting-point marker
   }
   if (cell.mine) { lose(i); return; }
   const stack = [i];
@@ -218,6 +226,8 @@ function paint(i) {
     if (c.adj) { cls += ` has-n n${c.adj}`; txt = c.adj; }
   } else if (c.flag) {
     cls += ' flag'; txt = '🚩';
+  } else if (!G.started && i === G.start) {
+    cls += ' start';
   }
   c.el.className = cls;
   c.el.textContent = txt;

@@ -104,7 +104,8 @@ body {
 [data-tier="1"] { --tc: var(--t1); } [data-tier="2"] { --tc: var(--t2); }
 [data-tier="3"] { --tc: var(--t3); } [data-tier="4"] { --tc: var(--t4); }
 [data-tier="5"] { --tc: var(--t5); }
-.foot { margin-top: 28px; display: flex; gap: 10px; flex-wrap: wrap; }
+.foot { margin-top: 28px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.version { margin-left: auto; font-size: 12px; color: var(--muted); }
 
 /* Game screen */
 .game-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }

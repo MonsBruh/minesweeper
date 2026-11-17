@@ -1,6 +1,6 @@
 // Caches the game so it opens and plays with no internet connection.
-// Bump VERSION whenever you change any file, so phones pick up the update.
-const VERSION = 'mines50-v4';
+// Bump VERSION (and APP_VERSION in game.js) whenever you change any file.
+const VERSION = 'mines50-v5';
 const FILES = [
   './',
   'index.html',
@@ -13,7 +13,11 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(VERSION)
+      .then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -24,16 +28,20 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Network first (so updates arrive when online), cache as fallback when offline.
+// Network first, always checking with the server (never the phone's short-term
+// browser cache), so updates show up straight away. Saved copy is used offline.
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+  const req = e.request;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
       .then(res => {
-        const copy = res.clone();
-        caches.open(VERSION).then(c => c.put(e.request, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(VERSION).then(c => c.put(req, copy));
+        }
         return res;
       })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }))
+      .catch(() => caches.match(req, { ignoreSearch: true }))
   );
 });

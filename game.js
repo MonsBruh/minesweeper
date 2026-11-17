@@ -7,6 +7,7 @@
  *   mine density 10% -> 23%   (classic Expert is ~20.6%)
  * Mine count is forced to rise every level, so each one is strictly harder.
  */
+const APP_VERSION = '5'; // keep in step with VERSION in sw.js
 const LEVEL_COUNT = 50;
 const LEVELS = (() => {
   const out = [];
@@ -461,7 +462,23 @@ show('levels');
 
 // Offline support: once loaded, the game works with no internet connection.
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update();
+    // Check for a new version every time the app is brought back to the front.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  // When a new version takes over, reload so it's used straight away
+  // (but never in the middle of a game).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded || (G && G.started && !G.over)) return;
+    reloaded = true;
+    location.reload();
+  });
 }
+$('#version').textContent = 'Version ' + APP_VERSION;
 // Ask the browser to keep saved progress even if the phone runs low on space.
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

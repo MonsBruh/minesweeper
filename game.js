@@ -58,6 +58,7 @@ function show(screen) {
 function renderLevels() {
   const grid = $('#levelGrid');
   grid.innerHTML = '';
+  const firstUncleared = nextUnplayed();
   LEVELS.forEach(L => {
     const tier = tierOf(L.n);
     if ((L.n - 1) % 10 === 0) {
@@ -68,15 +69,12 @@ function renderLevels() {
       grid.appendChild(h);
     }
     const done = progress.best[L.n] != null;
-    const locked = L.n > progress.unlocked;
     const b = document.createElement('button');
-    b.className = 'lvl' + (done ? ' done' : '') + (locked ? ' locked' : '') +
-      (!done && L.n === progress.unlocked ? ' current' : '');
+    b.className = 'lvl' + (done ? ' done' : '') + (L.n === firstUncleared ? ' current' : '');
     b.dataset.tier = tier;
-    b.disabled = locked;
     b.innerHTML = `<span class="num">${L.n}</span>
       <span class="meta">${L.cols}×${L.rows} · ${L.mines} mines</span>
-      <span class="best">${done ? '★ ' + fmt(progress.best[L.n]) : locked ? '🔒 Locked' : 'Play →'}</span>`;
+      <span class="best">${done ? '★ ' + fmt(progress.best[L.n]) : 'Play →'}</span>`;
     b.addEventListener('click', () => startLevel(L.n));
     grid.appendChild(b);
   });
@@ -87,7 +85,7 @@ function renderLevels() {
   $('#continueBtn').textContent = next ? `Play level ${next} →` : 'All levels cleared! Replay level 50';
 }
 function nextUnplayed() {
-  for (let n = 1; n <= progress.unlocked; n++) if (progress.best[n] == null) return n;
+  for (let n = 1; n <= LEVEL_COUNT; n++) if (progress.best[n] == null) return n;
   return null;
 }
 
@@ -128,7 +126,7 @@ function startLevel(n) {
   $('#levelTitle').textContent = `Level ${n}`;
   $('#levelMeta').textContent = `${TIERS[tierOf(n) - 1]} · ${L.cols}×${L.rows} · ${L.mines} mines`;
   $('#prevBtn').disabled = n <= 1;
-  $('#nextBtn').disabled = n >= LEVEL_COUNT || n + 1 > progress.unlocked;
+  $('#nextBtn').disabled = n >= LEVEL_COUNT;
   $('#faceBtn').textContent = '🙂';
   updateBest();
   updateHud();
@@ -283,15 +281,11 @@ function win() {
   const prevBest = progress.best[n];
   const newBest = prevBest == null || time < prevBest;
   if (newBest) progress.best[n] = time;
-  const unlockedNew = n < LEVEL_COUNT && progress.unlocked < n + 1;
-  if (unlockedNew) progress.unlocked = n + 1;
   saveProgress();
   updateBest();
-  $('#nextBtn').disabled = n >= LEVEL_COUNT;
 
   let text = `Time: ${fmt(time)}`;
   if (prevBest != null) text += newBest ? ` — new best! (was ${fmt(prevBest)})` : ` · Best: ${fmt(prevBest)}`;
-  if (unlockedNew) text += `\nLevel ${n + 1} unlocked.`;
   const buttons = [];
   if (n < LEVEL_COUNT) buttons.push([`Level ${n + 1} →`, 'primary', () => startLevel(n + 1)]);
   buttons.push(['Replay', n < LEVEL_COUNT ? '' : 'primary', () => startLevel(n)]);
@@ -411,7 +405,7 @@ $('#backBtn').addEventListener('click', goToLevels);
 $('#prevBtn').addEventListener('click', () => G.L.n > 1 && startLevel(G.L.n - 1));
 $('#nextBtn').addEventListener('click', () => {
   const n = G.L.n + 1;
-  if (n <= LEVEL_COUNT && n <= progress.unlocked) startLevel(n);
+  if (n <= LEVEL_COUNT) startLevel(n);
 });
 $('#continueBtn').addEventListener('click', () => startLevel(nextUnplayed() || LEVEL_COUNT));
 $('#resetBtn').addEventListener('click', () => {

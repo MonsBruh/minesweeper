@@ -8,7 +8,7 @@
  *   mine density 10% -> 23%   (classic Expert is ~20.6%)
  * Every level has more mines than the one before.
  */
-const APP_VERSION = '7'; // keep in step with VERSION in sw.js
+const APP_VERSION = '8'; // keep in step with VERSION in sw.js
 const LEVELS = LEVEL_DATA.map(({ n, cols, rows, mines }) => ({ n, cols, rows, mines }));
 const LEVEL_COUNT = LEVELS.length;
 const TIERS = ['Beginner', 'Easy', 'Medium', 'Hard', 'Expert'];
@@ -96,7 +96,7 @@ function startLevel(n) {
     cols: turn ? L.rows : L.cols,
     rows: turn ? L.cols : L.rows,
     cells: Array.from({ length: total }, () => ({ mine: false, adj: 0, open: false, flag: false, el: null })),
-    started: false, over: false, opened: 0, flags: 0,
+    started: false, over: false, opened: 0, flags: 0, hints: 0,
     startTime: 0, elapsed: 0, timerId: null,
   };
   const board = $('#board');
@@ -218,6 +218,209 @@ function paint(i) {
   c.el.textContent = txt;
 }
 
+/* ---------- Hints ----------
+ * Finds a square that can be PROVEN safe from what's on screen (the opened
+ * numbers and the mine counter), the same way a careful player would.
+ * Your own flags are ignored, since they might be wrong.
+ */
+function findHint() {
+  if (!G.started) return { i: G.start, safe: true };
+  const N = G.total;
+  const known = new Uint8Array(N); // squares proven to be mines
+  let firstMine = -1;
+  for (let round = 0; round < N; round++) {
+    const cons = [];
+    for (let i = 0; i < N; i++) {
+      const c = G.cells[i];
+      if (!c.open || !c.adj) continue;
+      const unk = [];
+      let km = 0;
+      for (const j of neighbours(i)) {
+        if (G.cells[j].open) continue;
+        if (known[j]) km++; else unk.push(j);
+      }
+      if (unk.length) cons.push({ s: unk, need: c.adj - km });
+    }
+    let r = simpleRules(cons);
+    if (!r.safe.size && !r.mines.size) r = pairRules(cons);
+    if (!r.safe.size && !r.mines.size) r = enumerateRules(cons, known);
+    if (r.safe.size) return { i: r.safe.values().next().value, safe: true };
+    if (!r.mines.size) break;
+    for (const m of r.mines) {
+      known[m] = 1;
+      if (firstMine < 0 && !G.cells[m].flag) firstMine = m;
+    }
+  }
+  return firstMine >= 0 ? { i: firstMine, safe: false } : null;
+}
+
+function simpleRules(cons) {
+  const safe = new Set(), mines = new Set();
+  for (const { s, need } of cons) {
+    if (need === 0) s.forEach(j => safe.add(j));
+    else if (need === s.length) s.forEach(j => mines.add(j));
+  }
+  return { safe, mines };
+}
+
+function pairRules(cons) {
+  const safe = new Set(), mines = new Set();
+  const byCell = new Map();
+  cons.forEach((c, k) => c.s.forEach(j => {
+    if (!byCell.has(j)) byCell.set(j, []);
+    byCell.get(j).push(k);
+  }));
+  const sets = cons.map(c => new Set(c.s));
+  const seen = new Set();
+  for (const ks of byCell.values()) {
+    for (const a of ks) for (const b of ks) {
+      if (a === b || seen.has(a * 100000 + b)) continue;
+      seen.add(a * 100000 + b);
+      const A = sets[a], B = sets[b], na = cons[a].need, nb = cons[b].need;
+      const onlyB = cons[b].s.filter(j => !A.has(j));
+      const onlyA = cons[a].s.filter(j => !B.has(j));
+      if (!onlyB.length) continue;
+      if (!onlyA.length && nb - na === 0) onlyB.forEach(j => safe.add(j));
+      else if (nb - na === onlyB.length) {
+        onlyB.forEach(j => mines.add(j));
+        onlyA.forEach(j => safe.add(j));
+      }
+    }
+  }
+  return { safe, mines };
+}
+
+function enumerateRules(cons, known) {
+  const safe = new Set(), mines = new Set();
+  const cellCons = new Map();
+  cons.forEach((c, k) => c.s.forEach(j => {
+    if (!cellCons.has(j)) cellCons.set(j, []);
+    cellCons.get(j).push(k);
+  }));
+  let knownCount = 0;
+  for (let i = 0; i < G.total; i++) knownCount += known[i];
+  const remaining = G.L.mines - knownCount;
+  const interior = [];
+  for (let i = 0; i < G.total; i++) {
+    if (!G.cells[i].open && !known[i] && !cellCons.has(i)) interior.push(i);
+  }
+
+  // Split the frontier into independent groups and list every possible mine
+  // arrangement in each one (grouped by how many mines it uses).
+  const groups = [], done = new Set();
+  for (const j of cellCons.keys()) {
+    if (done.has(j)) continue;
+    const comp = [], stack = [j];
+    done.add(j);
+    while (stack.length) {
+      const x = stack.pop();
+      comp.push(x);
+      for (const k of cellCons.get(x)) for (const y of cons[k].s) {
+        if (!done.has(y)) { done.add(y); stack.push(y); }
+      }
+    }
+    groups.push({ comp, res: enumGroup(comp, cons, cellCons) });
+  }
+  const ranges = groups.map(g => g.res
+    ? new Set(g.res.keys())
+    : new Set(Array.from({ length: g.comp.length + 1 }, (_, i) => i)));
+  const sums = list => {
+    let acc = new Set([0]);
+    for (const s of list) {
+      const next = new Set();
+      for (const a of acc) for (const x of s) if (a + x <= remaining) next.add(a + x);
+      acc = next;
+    }
+    return acc;
+  };
+  const I = interior.length;
+  groups.forEach((g, gi) => {
+    if (!g.res) return;
+    const others = [...sums(ranges.filter((_, k) => k !== gi))];
+    const mineAny = new Uint8Array(g.comp.length), safeAny = new Uint8Array(g.comp.length);
+    let any = false;
+    for (const [k, v] of g.res) {
+      if (!others.some(s => remaining - k - s >= 0 && remaining - k - s <= I)) continue;
+      any = true;
+      for (let t = 0; t < g.comp.length; t++) { mineAny[t] |= v.mine[t]; safeAny[t] |= v.safe[t]; }
+    }
+    if (!any) return;
+    g.comp.forEach((cell, t) => {
+      if (!mineAny[t]) safe.add(cell);
+      else if (!safeAny[t]) mines.add(cell);
+    });
+  });
+  if (I) {
+    const counts = new Set();
+    for (const s of sums(ranges)) if (remaining - s >= 0 && remaining - s <= I) counts.add(remaining - s);
+    if (counts.size === 1 && counts.has(0)) interior.forEach(j => safe.add(j));
+    if (counts.size === 1 && counts.has(I)) interior.forEach(j => mines.add(j));
+  }
+  return { safe, mines };
+}
+
+function enumGroup(comp, cons, cellCons) {
+  const n = comp.length;
+  const need = new Map(), left = new Map(), have = new Map();
+  for (const cell of comp) for (const k of cellCons.get(cell)) {
+    need.set(k, cons[k].need); left.set(k, cons[k].s.length); have.set(k, 0);
+  }
+  const assign = new Uint8Array(n);
+  const out = new Map();
+  let nodes = 0;
+  const LIMIT = 200000;
+  function rec(pos, count) {
+    if (++nodes > LIMIT) throw new Error('too big');
+    if (pos === n) {
+      if (!out.has(count)) out.set(count, { mine: new Uint8Array(n), safe: new Uint8Array(n) });
+      const o = out.get(count);
+      for (let t = 0; t < n; t++) { if (assign[t]) o.mine[t] = 1; else o.safe[t] = 1; }
+      return;
+    }
+    const ks = cellCons.get(comp[pos]);
+    for (let v = 0; v <= 1; v++) {
+      let ok = true;
+      for (const k of ks) {
+        const h = have.get(k) + v, l = left.get(k) - 1;
+        if (h > need.get(k) || h + l < need.get(k)) { ok = false; break; }
+      }
+      if (!ok) continue;
+      for (const k of ks) { have.set(k, have.get(k) + v); left.set(k, left.get(k) - 1); }
+      assign[pos] = v;
+      rec(pos + 1, count + v);
+      for (const k of ks) { have.set(k, have.get(k) - v); left.set(k, left.get(k) + 1); }
+    }
+  }
+  try { rec(0, 0); } catch (e) { return null; }
+  return out;
+}
+
+let hintTimer = null;
+function showHint() {
+  if (!G || G.over) return;
+  const h = findHint();
+  const msg = $('#hintMsg');
+  clearTimeout(hintTimer);
+  document.querySelectorAll('.cell.hint').forEach(el => el.classList.remove('hint', 'hint-mine'));
+  if (!h) {
+    msg.textContent = 'No safe square can be worked out right now.';
+  } else {
+    G.hints++;
+    const c = G.cells[h.i];
+    c.el.classList.add('hint');
+    if (!h.safe) c.el.classList.add('hint-mine');
+    c.el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    msg.textContent = !h.safe ? 'This square must be a mine. Flag it.'
+      : c.flag ? 'This square is safe. Your flag on it is wrong.'
+      : !G.started ? 'Start here: tap the green square.'
+      : 'This square is safe to open.';
+  }
+  hintTimer = setTimeout(() => {
+    msg.textContent = '';
+    document.querySelectorAll('.cell.hint').forEach(el => el.classList.remove('hint', 'hint-mine'));
+  }, 4000);
+}
+
 /* ---------- Timer & HUD ---------- */
 function startTimer() {
   G.startTime = performance.now();
@@ -280,6 +483,7 @@ function win() {
 
   let text = `Time: ${fmt(time)}`;
   if (prevBest != null) text += newBest ? ` — new best! (was ${fmt(prevBest)})` : ` · Best: ${fmt(prevBest)}`;
+  if (G.hints) text += `\n💡 ${G.hints} hint${G.hints === 1 ? '' : 's'} used`;
   const buttons = [];
   if (n < LEVEL_COUNT) buttons.push([`Level ${n + 1} →`, 'primary', () => startLevel(n + 1)]);
   buttons.push(['Replay', n < LEVEL_COUNT ? '' : 'primary', () => startLevel(n)]);
@@ -394,6 +598,7 @@ function setFlagMode(on) {
 }
 
 $('#flagModeBtn').addEventListener('click', () => setFlagMode(!flagMode));
+$('#hintBtn').addEventListener('click', showHint);
 $('#faceBtn').addEventListener('click', () => startLevel(G.L.n));
 $('#backBtn').addEventListener('click', goToLevels);
 $('#prevBtn').addEventListener('click', () => G.L.n > 1 && startLevel(G.L.n - 1));
@@ -417,6 +622,7 @@ document.addEventListener('keydown', e => {
     else goToLevels();
   } else if (e.key === 'r' || e.key === 'R') startLevel(G.L.n);
   else if (e.key === 'f' || e.key === 'F') setFlagMode(!flagMode);
+  else if (e.key === 'h' || e.key === 'H') showHint();
 });
 
 /* ---------- Boot ---------- */

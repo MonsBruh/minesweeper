@@ -165,6 +165,16 @@ body {
 .n1 { color: var(--n1); } .n2 { color: var(--n2); } .n3 { color: var(--n3); } .n4 { color: var(--n4); }
 .n5 { color: var(--n5); } .n6 { color: var(--n6); } .n7 { color: var(--n7); } .n8 { color: var(--n8); }
 
+.tools { display: flex; gap: 6px; }
+.hint-msg {
+  max-width: 420px; min-height: 20px; margin: -8px auto 8px;
+  text-align: center; font-size: 14px; font-weight: 600; color: #ca8a04;
+}
+.cell.hint { outline: 3px solid #facc15; outline-offset: -1px; animation: hintPulse .8s ease-in-out infinite; position: relative; z-index: 1; }
+.cell.hint-mine { outline-color: #ef4444; }
+@keyframes hintPulse { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .cell.hint { animation: none; } }
+
 .help { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; }
 
 /* Dialog */
